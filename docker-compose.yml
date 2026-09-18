@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: cosmo-db
+    environment:
+      POSTGRES_USER: cosmo
+      POSTGRES_PASSWORD: cosmo
+      POSTGRES_DB: cosmo
+    ports:
+      - "5432:5432"
+    volumes:
+      - cosmo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosmo -d cosmo"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cosmo-server
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      STORE_BACKEND: postgres
+      PORT: "8080"
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: cosmo
+      PGPASSWORD: cosmo
+      PGDATABASE: cosmo
+    ports:
+      - "8080:8080"
+    # The image is distroless (no shell/wget), so no in-container health
+    # binary is bundled. Readiness for monitors/orchestration is exposed at
+    # GET /health/ready (it pings the database); liveness at /health/live.
+    restart: unless-stopped
+
+volumes:
+  cosmo-pgdata:
